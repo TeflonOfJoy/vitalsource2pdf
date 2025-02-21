@@ -60,10 +60,10 @@ platform_identifiers = {
     } if args.yuzu else {
     'home_url': "https://bookshelf.vitalsource.com",
     'jigsaw_url': "https://jigsaw.vitalsource.com",
-    'total_pages': "sc-knKHOI gGldJU",
+    'total_pages': "sc-eoHXOn cYtiUg",
     'current_page': "InputControl__input-fbzQBk hDtUvs TextField__InputControl-iza-dmV iISUBf",
     'page_loader': "sc-AjmGg dDNaMw",
-    'next_page': "IconButton__button-bQttMI gHMmeA sc-oXPCX mwNce",
+    'next_page': "IconButton__button-bQttMI cSDGGI",
 }
 
 
@@ -87,7 +87,7 @@ def get_num_pages():
 
 
 def load_book_page(page_id):
-    driver.get(platform_identifiers['home_url']+'/reader/books/{args.isbn}/pageid/{page_id}')
+    driver.get(platform_identifiers['home_url']+f'/reader/books/{args.isbn}/pageid/{page_id}')
     get_num_pages()  # Wait for the page to load
     # Wait for the page loader animation to disappear
     while len(driver.find_elements(By.CLASS_NAME, platform_identifiers['page_loader'])):
@@ -96,6 +96,8 @@ def load_book_page(page_id):
 
 if not args.skip_scrape or args.only_scrape_metadata:
     chrome_options = webdriver.ChromeOptions()
+    extension_path = "~/.config/google-chrome/Default/Extensions/dknlfmjaanfblgfdfebhijalfmhmjjjo/0.4.13_0.crx"
+    chrome_options.add_extension(extension_path)
     if args.disable_web_security:
         chrome_options.add_argument('--disable-web-security')
         print('DISABLED WEB SECURITY!')
