@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import random
 from pathlib import Path
 
 import img2pdf
@@ -28,7 +29,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--output', default='./output/')
 parser.add_argument('--yuzu', default=False)
 parser.add_argument('--isbn', required=True)
-parser.add_argument('--delay', default=2, type=int, help='Delay between pages to let them load in seconds.')
+parser.add_argument('--min-batch-size', default=100, type=int, help='Minimum batch size of pages.')
+parser.add_argument('--max-batch-size', default=200, type=int, help='Maximum batch size of pages.')
+parser.add_argument('--min-batch-delay', default=5, type=int, help='Minimum delay between batches in minutes.')
+parser.add_argument('--max-batch-delay', default=15, type=int, help='Maximum delay between batches in minutes.')
+parser.add_argument('--min-delay', default=2, type=int, help='Minimum delay between pages to let them load in seconds.')
+parser.add_argument('--max-delay', default=5, type=int, help='Maximum delay between pages to let them load in seconds.')
 parser.add_argument('--pages', default=None, type=int, help='Override how many pages to save.')  # TODO
 parser.add_argument('--start-page', default=0, type=int, help='Start on this page. Pages start at zero and include any non-numbered pages.')
 parser.add_argument('--end-page', default=-1, type=int, help='End on this page.')
@@ -118,7 +124,7 @@ if not args.skip_scrape or args.only_scrape_metadata:
 
     # Get book info
     print('Scraping metadata...')
-    time.sleep(args.delay * 2)
+    time.sleep((random.randint(args.min_delay, args.max_delay)) * 2)
     failed = True
     for i in range(5):
         for request in driver.requests:
@@ -178,8 +184,10 @@ if not args.skip_scrape or args.only_scrape_metadata:
         small_pages_redo = set()
         bar = tqdm(total=total_pages)
         bar.update(page_num)
+        batch_size = random.randint(args.min_batch_size, args.max_batch_size)
+        pages_in_batch = 0
         while page_num < total_pages + 1:
-            time.sleep(args.delay)
+            time.sleep(random.randint(args.min_delay, args.max_delay))
             retry_delay = 5
             base_url = None
             for page_retry in range(3):  # retry the page max this many times
@@ -237,13 +245,28 @@ if not args.skip_scrape or args.only_scrape_metadata:
             actions.perform()
             bar.update()
             page_num += 1
+            pages_in_batch += 1
+            # Check if batch is complete
+            if pages_in_batch >= batch_size:
+                sleep_time = random.randint(args.min_batch_delay * 60, args.max_batch_delay * 60)
+                print(f"Completed a batch of {batch_size} pages. Sleeping for {sleep_time // 60} minutes.")
+                time.sleep(sleep_time)
+                batch_size = random.randint(args.min_batch_size, args.max_batch_size)
+                pages_in_batch = 0
+            # Check for end_page condition
+            if page_num == args.end_page:
+                bar.write(f'Exiting on page {page_num}.')
+                break
         bar.close()
 
         print('Re-doing failed pages...')
-        bar = tqdm(total=len(failed_pages))
-        for page in failed_pages:
+        failed_pages_list = list(failed_pages)
+        bar = tqdm(total=len(failed_pages_list))
+        batch_size_redo = random.randint(args.min_batch_size, args.max_batch_size)
+        pages_in_batch_redo = 0
+        for page in failed_pages_list:
             load_book_page(page)
-            time.sleep(args.delay)
+            time.sleep(random.randint(args.min_delay, args.max_delay))
             retry_delay = 5
             base_url = None
             for page_retry in range(3):  # retry the page max this many times
@@ -269,6 +292,13 @@ if not args.skip_scrape or args.only_scrape_metadata:
                 bar.write(base_url)
                 del driver.requests
             bar.update(1)
+            pages_in_batch_redo += 1
+            if pages_in_batch_redo >= batch_size_redo:
+                sleep_time = random.randint(args.min_batch_delay * 60, args.max_batch_delay * 60)
+                print(f"Re-do batch of {batch_size_redo} pages completed. Sleeping for {sleep_time//60} minutes.")
+                time.sleep(sleep_time)
+                batch_size_redo = random.randint(args.min_batch_size, args.max_batch_size)
+                pages_in_batch_redo = 0
         bar.close()
 
         time.sleep(1)
@@ -279,9 +309,9 @@ if not args.skip_scrape or args.only_scrape_metadata:
             success = False
             for retry in range(6):
                 del driver.requests
-                time.sleep(args.delay / 2)
+                time.sleep((random.randint(args.min_delay, args.max_delay)) / 2)
                 driver.get(f'{base_url.strip("/")}/2000')
-                time.sleep(args.delay / 2)
+                time.sleep((random.randint(args.min_delay, args.max_delay)) / 2)
                 retry_delay = 5
                 img_data = None
                 for page_retry in range(3):  # retry the page max this many times
